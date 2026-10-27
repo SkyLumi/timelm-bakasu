@@ -6,3 +6,4 @@ toolchain/
 magiskboot
 crash*.txt
 pmsg*.txt
+release/
