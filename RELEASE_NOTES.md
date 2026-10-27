@@ -1,6 +1,6 @@
 # timelm-bakasu v1.0.0
 
-First public release — **KernelSU (ReSukiSU/BakaSU) built into the kernel** for the **LG V60 ThinQ (`timelm`)** running **LineageOS 23.2** (Android 16, kernel 4.19.325-cip133-st17).
+First public release — **KernelSU (ReSukiSU/BakaSU) built into the kernel** for the **LG V60 ThinQ (`timelm`)** running **LineageOS 23.2-20261018** (Android 16, kernel 4.19.325-cip133-st17, kernel commit `29902cf733dc`).
 
 ## Asset
 
@@ -8,7 +8,8 @@ First public release — **KernelSU (ReSukiSU/BakaSU) built into the kernel** fo
 |---|---|
 | `timelm-bakasu-v1.0.0.zip` | contains `boot-sukisu-v1.img` (ready to flash) |
 
-- Kernel string: `4.19.325-cip133-st17-perf-g29902cf733dc` — **vermagic identical to stock Lineage**, so vendor modules (`wlan.ko`, audio DLKMs) load normally
+- Kernel string: `4.19.325-cip133-st17-perf-g29902cf733dc` — **vermagic identical to LineageOS 23.2-20261018**, so vendor modules (`wlan.ko`, audio DLKMs) load normally
+- Built from `LineageOS/android_kernel_lge_sm8250` @ `29902cf733dc` (branch `lineage-23.2`)
 - KernelSU: built-in (`CONFIG_KSU=y`), manual hooks, `KSU_VERSION 35252` / UAPI 6
 - Manager: **BakaSU nightly 35252** (matching driver — `35171` will show "Manager update required")
 - SHA256 (`boot-sukisu-v1.img`): `0917428cc22a256d3d171343d3f8c128d670001ec3fc984367cd94ef51ce7d95`
@@ -22,7 +23,7 @@ First public release — **KernelSU (ReSukiSU/BakaSU) built into the kernel** fo
 
 ## Installation
 
-Requirements: bootloader unlocked, LineageOS 23.2 installed, **stock Android 13 base**, `fastboot`.
+Requirements: bootloader unlocked, **LineageOS 23.2-20261018** installed (`adb shell getprop ro.lineage.version`), **stock Android 13 base** before flashing the ROM, `fastboot`.
 
 ```bash
 unzip timelm-bakasu-v1.0.0.zip

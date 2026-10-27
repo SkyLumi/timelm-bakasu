@@ -2,13 +2,17 @@
 
 Tested on: Ubuntu 24.04, i3-4030U (4 threads), 8 GB RAM, 65 W charger plugged in the whole time ☕
 
+Target ROM: **LineageOS 23.2-20261018** (`timelm`), kernel commit `29902cf733dc` → vermagic `4.19.325-cip133-st17-perf-g29902cf733dc`.
+
 ## 1. Sources and toolchain
 
 ```bash
 mkdir -p ~/timelm && cd ~/timelm
 
-git clone --depth=1 -b lineage-23.2 \
+# branch lineage-23.2; pin the kernel commit used by the 20261018 nightly
+git clone -b lineage-23.2 \
   https://github.com/LineageOS/android_kernel_lge_sm8250 kernel
+git -C kernel checkout 29902cf733dc
 
 git clone https://github.com/ReSukiSU/ReSukiSU.git kernel/ReSukiSU
 git -C kernel/ReSukiSU checkout d5e9e025     # KSU_VERSION 35252, UAPI 6
