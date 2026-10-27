@@ -1,20 +1,20 @@
 # timelm-bakasu
 
-**KernelSU (ReSukiSU/BakaSU) built into the kernel for the LG V60 ThinQ — `timelm` — on LineageOS 23.2 (Android 16, kernel 4.19)**
+**KernelSU (ReSukiSU/BakaSU) built into the kernel for the LG V60 ThinQ (`timelm`) on LineageOS 23.2 (Android 16, kernel 4.19)**
 
 Built and tested against **LineageOS 23.2-20261018** (`timelm`), kernel commit [`29902cf733dc`](https://github.com/LineageOS/android_kernel_lge_sm8250/commit/29902cf733dc), vermagic `4.19.325-cip133-st17-perf-g29902cf733dc`.
 
 This repository contains patches and scripts to build the LineageOS 23.2 kernel with **KernelSU in built-in mode** (not LKM) for the LG V60 (`L-51A`, `LM-V600EA/VM/TM/N`), plus the technical notes on an `MHI`/modem bug that makes rebuilt kernels reboot on their own.
 
-> Status: **working** — `su` works, the BakaSU manager reports "Working (Built-in)", and the MHI panic triggered by a failed modem boot is patched (see [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)).
+> Status: **working**: `su` works, the BakaSU manager reports "Working (Built-in)", and the MHI panic triggered by a failed modem boot is patched (see [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)).
 
 ---
 
 ## Why this repo exists
 
-The `4.19` non-GKI kernel is **not supported** by SukiSU Ultra `main` — it requires API ≥ 5.4 (`fsnotify.handle_inode_event`, `seccomp.filter_count`, `selinux_state.policy`, etc.). What works on 4.19 is **ReSukiSU / BakaSU** (a fork), with **manual hooks**, because the tracepoint hook path is GKI 2.0 only.
+The `4.19` non-GKI kernel is **not supported** by SukiSU Ultra `main`. It requires API ≥ 5.4 (`fsnotify.handle_inode_event`, `seccomp.filter_count`, `selinux_state.policy`, etc.). What works on 4.19 is **ReSukiSU / BakaSU** (a fork) with **manual hooks**, because the tracepoint hook path is GKI 2.0 only.
 
-After the kernel booted, a second problem appeared: the phone would **panic and reboot by itself**, with no obvious cause. It turned out to be the **Qualcomm MHI driver error path**: when the external modem (SDX55M) fails to power up — for example, **no SIM inserted** — `mhi_deinit_free_irq()` / `mhi_deinit_dev_ctxt()` dereference resources that were never allocated. Panic.
+After the kernel booted, a second problem appeared: the phone would **panic and reboot by itself**, with no obvious cause. It turned out to be the **Qualcomm MHI driver error path**: when the external modem (SDX55M) fails to power up (for example, **no SIM inserted**), `mhi_deinit_free_irq()` / `mhi_deinit_dev_ctxt()` dereference resources that were never allocated. Panic.
 
 This repo stores the patches and the build recipe so nobody has to repeat the same seven iterations. 🙂
 
@@ -32,10 +32,10 @@ This repo stores the patches and the build recipe so nobody has to repeat the sa
 
 ## Requirements
 
-- LG V60 (`timelm`), bootloader unlocked, **LineageOS 23.2-20261018** (or a nightly whose kernel is still `29902cf733dc`) installed — flash from **stock Android 13** base first
+- LG V60 (`timelm`), bootloader unlocked, **LineageOS 23.2-20261018** (or a nightly whose kernel is still `29902cf733dc`) installed; flash from a **stock Android 13** base first
   - check your build: `adb shell getprop ro.lineage.version` (e.g. `23.2-20261018-NIGHTLY-timelm`)
-- Linux build host (tested on an i3-4030U, 8 GB RAM — patience required 🙂), ~30 GB disk
-- Toolchain: **AOSP clang 21 r563880c** (build `14054515`) — must match the official Lineage build, otherwise vermagic/module CRCs drift
+- Linux build host (tested on an i3-4030U, 8 GB RAM; patience required 🙂), ~30 GB disk
+- Toolchain: **AOSP clang 21 r563880c** (build `14054515`) that must match the official Lineage build; otherwise vermagic/module CRCs drift
 - `magiskboot`, `python3`, `git`, `zip`
 
 ## Build (quick start)
@@ -83,7 +83,7 @@ adb shell su -c id                                 # uid=0(root) context=u:r:ksu
 
 ## Important notes
 
-- `su` from `adb shell` only works once UID `2000` (Shell) is allowlisted in the manager (Superuser → *show system apps* → **Shell**). Without it, the shell answers `su: inaccessible or not found` — that is **not** a broken root.
+- `su` from `adb shell` only works once UID `2000` (Shell) is allowlisted in the manager (Superuser → *show system apps* → **Shell**). Without it, the shell answers `su: inaccessible or not found`; that is **not** a broken root.
 - The manager build **must** match the driver. Driver `35252` (UAPI 6) ↔ manager `35171` (UAPI 4) → "Manager update required" banner and no userspace (`ksud`) installed. Use the nightly build matching the commit.
 - A Lineage OTA will overwrite `boot` → root is gone, reflash required. If the OTA moves the kernel to a new commit, the vermagic changes: rebuild (or module loading may break) instead of reusing this image.
 
@@ -91,14 +91,14 @@ adb shell su -c id                                 # uid=0(root) context=u:r:ksu
 
 - **WiFi**: `cnss` fails to load `regdb.bin` (looked up in six paths, missing) → connection can be flaky. Not caused by this kernel.
 - **`ro.product.model` = `UNKNOWN`** on some builds (while `system_ext`/`vendor_dlkm` still report `LM-V600`). Cosmetic; fixable with `resetprop`.
-- **No SIM**: the external modem fails to boot — harmless now (patched), but no cellular at all.
+- **No SIM**: the external modem fails to boot, harmless now (patched), but no cellular at all.
 - Widevine drops to L3, Dual Screen case unsupported (ROM limitations, not kernel).
 
 ## Credits
 
-- [LineageOS](https://github.com/LineageOS) — `lge_sm8250` kernel, `timelm` device tree
-- [ReSukiSU](https://github.com/ReSukiSU/ReSukiSU) / [BakaSU](https://github.com/Baka-SU/BakaSU) — the 4.19-compatible KernelSU fork
-- [topjohnwu/Magisk](https://github.com/topjohnwu/Magisk) — `magiskboot`
+- [LineageOS](https://github.com/LineageOS) for the `lge_sm8250` kernel and `timelm` device tree
+- [ReSukiSU](https://github.com/ReSukiSU/ReSukiSU) / [BakaSU](https://github.com/Baka-SU/BakaSU) (the 4.19-compatible KernelSU fork)
+- [topjohnwu/Magisk](https://github.com/topjohnwu/Magisk) (provides `magiskboot`)
 
 ## License
 

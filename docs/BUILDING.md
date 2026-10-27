@@ -1,8 +1,8 @@
-# BUILDING — full guide
+# BUILDING: full guide
 
 Tested on: Ubuntu 24.04, i3-4030U (4 threads), 8 GB RAM, 65 W charger plugged in the whole time ☕
 
-Target ROM: **LineageOS 23.2-20261018** (`timelm`), kernel commit `29902cf733dc` → vermagic `4.19.325-cip133-st17-perf-g29902cf733dc`.
+Target ROM: **LineageOS 23.2-20261018** (`timelm`); kernel commit `29902cf733dc` → vermagic `4.19.325-cip133-st17-perf-g29902cf733dc`.
 
 ## 1. Sources and toolchain
 
@@ -61,7 +61,7 @@ echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
 echo 'source "drivers/kernelsu/Kconfig"' >> drivers/Kconfig
 ```
 
-Manual hooks are required (4.19 has no GKI tracepoints) — see
+Manual hooks are required (4.19 has no GKI tracepoints); see
 `patches/0001-lineage-ksu-integration.patch`:
 
 | File | Hook |
@@ -93,7 +93,7 @@ IMAGE=~/timelm/kernel/out/arch/arm64/boot/Image \
 ```
 
 ⚠️ `repack.sh` will **reject** an `Image.gz`. This is intentional: LG XBL cannot jump
-to a compressed kernel — the result is `LGE Crash Handler: UEFI Crash` followed by
+to a compressed kernel; the result is `LGE Crash Handler: UEFI Crash` followed by
 `Enter Sahara Mode`.
 
 ## 6. Flash and verify

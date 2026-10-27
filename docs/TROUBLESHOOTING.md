@@ -1,4 +1,4 @@
-# TROUBLESHOOTING — real-world cases on the LG V60 (timelm)
+# TROUBLESHOOTING: real-world cases on the LG V60 (timelm)
 
 Everything below actually happened while building this kernel. Hopefully it saves you time.
 
@@ -38,7 +38,7 @@ Check with: `ksud debug info` → `version: 35252`, `uapi_version: 6`.
 
 ## 4. ⚠️ `mhi_deinit_free_irq` / `mhi_deinit_dev_ctxt` panic (modem)
 
-Symptom: the phone runs for ~2–3 minutes, then reboots by itself,
+Symptom: the phone runs for ~2-3 minutes, then reboots by itself;
 `ro.boot.bootreason = kernel_panic`.
 
 Cause: the **external modem SDX55M fails to boot** (easiest reproduction: **no SIM**),
@@ -73,7 +73,7 @@ void mhi_deinit_dev_ctxt(struct mhi_controller *mhi_cntrl)
 Result: the modem still fails (no cellular), but the **kernel no longer panics**.
 
 Optional (saves CPU, stops retries): `stop vendor.mdm_helper` + `stop vendor.mdm_launcher`.
-Do **not** stop `vendor.per_mgr` / `pm-service` — it also drives other subsystems.
+Do **not** stop `vendor.per_mgr` / `pm-service`; it also drives other subsystems.
 
 ## 5. `LGE Crash Handler: UEFI Crash` → `Enter Sahara Mode`
 
@@ -100,7 +100,7 @@ adb shell "cat /sys/fs/pstore/pmsg-ramoops-0" > pmsg.txt
 adb shell getprop ro.boot.bootreason
 ```
 
-`pstore` is **overwritten on every boot** — pull it immediately after a reboot, before
+`pstore` is **overwritten on every boot**; pull it immediately after a reboot, before
 rebooting again.
 
 ## 8. `ro.product.model` reads `UNKNOWN`
