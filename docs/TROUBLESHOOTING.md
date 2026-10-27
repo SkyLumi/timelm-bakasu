@@ -1,47 +1,48 @@
-# TROUBLESHOOTING — kasus nyata di LG V60 (timelm)
+# TROUBLESHOOTING — real-world cases on the LG V60 (timelm)
 
-Semua ini kejadian beneran waktu nge-build; semoga nghemat waktu kamu.
+Everything below actually happened while building this kernel. Hopefully it saves you time.
 
 ---
 
-## 1. SukiSU Ultra `main` gagal compile di 4.19
+## 1. SukiSU Ultra `main` fails to compile on 4.19
 
-Butuh API ≥ 5.4: `fsnotify handle_inode_event`, `seccomp.filter_count`,
+It requires API ≥ 5.4: `fsnotify handle_inode_event`, `seccomp.filter_count`,
 `selinux_state.policy`, `iopoll`, `remap_file_range`, `uapi/linux/mount.h`.
 
-→ Pakai **ReSukiSU / BakaSU** (fork) yang punya guard `KSU_COMPAT_USE_SELINUX_STATE`.
+→ Use **ReSukiSU / BakaSU** (a fork) which has the `KSU_COMPAT_USE_SELINUX_STATE` guard.
 
-## 2. `su: inaccessible or not found` padahal "Working (Built-in)"
+## 2. `su: inaccessible or not found` even though the manager says "Working (Built-in)"
 
-Penyebab paling umum: **UID 2000 (Shell) belum di-allowlist**.
+Most common cause: **UID 2000 (Shell) is not allowlisted**.
 
-Kernel cuma "percaya" proses di domain `u:r:ksu:s0`. `adb root` jalan di `u:r:su:s0`
-→ tetap ditolak. Ini **bukan** tanda root rusak.
+The kernel only trusts processes in the `u:r:ksu:s0` domain. `adb root` runs in
+`u:r:su:s0` → still rejected. This is **not** a sign of broken root.
 
-Perbaikan: manager → **Superuser** → tampilkan system apps → grup **Shell** → enable.
-Tes: `adb shell su -c id` → `uid=0(root) context=u:r:ksu:s0`.
+Fix: manager → **Superuser** → show system apps → group **Shell** → enable.
+Verify: `adb shell su -c id` → `uid=0(root) context=u:r:ksu:s0`.
 
-## 3. Banner "Manager update required" (UAPI mismatch)
+## 3. "Manager update required" banner (UAPI mismatch)
 
 `KSU_VERSION = 30000 + git rev-list-count + 700`.
-Contoh: `git describe` = `v4.2.0-rc3-81-gd5e9e025` → 35171 + 81 = **35252**, sedangkan
-manager rilis rc3 = **35171** → UAPI 6 vs 4 → userspace (`ksud`) tidak dipasang.
+Example: `git describe` = `v4.2.0-rc3-81-gd5e9e025` → 35171 + 81 = **35252**, while the
+published rc3 manager is **35171** → UAPI 6 vs 4 → userspace (`ksud`) is never installed.
 
-Solusi: pakai manager build yang cocok. Rilis GitHub `ReSukiSU/BakaSU` hanya sampai
-`rc3 (35171)`; build `35252` diambil dari nightly:
+Fix: use a manager build that matches the driver. GitHub releases of
+`ReSukiSU/BakaSU` stop at `rc3 (35171)`; build `35252` comes from the nightly channel:
 
 ```
 https://nightly.link/Baka-SU/BakaSU/workflows/build-manager/main/Manager-release.zip
 ```
 
-Cek: `ksud debug info` → `version: 35252`, `uapi_version: 6`.
+Check with: `ksud debug info` → `version: 35252`, `uapi_version: 6`.
 
-## 4. ⚠️ Panic `mhi_deinit_free_irq` / `mhi_deinit_dev_ctxt` (modem)
+## 4. ⚠️ `mhi_deinit_free_irq` / `mhi_deinit_dev_ctxt` panic (modem)
 
-Gejala: HP jalan ±2–3 menit lalu reboot sendiri, `ro.boot.bootreason = kernel_panic`.
+Symptom: the phone runs for ~2–3 minutes, then reboots by itself,
+`ro.boot.bootreason = kernel_panic`.
 
-Penyebab: **modem eksternal SDX55M gagal boot** (paling gampang direproduksi: **tanpa SIM**),
-lalu jalur cleanup MHI men-dereference resource yang tidak pernah dialokasi:
+Cause: the **external modem SDX55M fails to boot** (easiest reproduction: **no SIM**),
+then the MHI cleanup path dereferences resources that were never allocated:
 
 ```
 Unable to handle kernel NULL pointer dereference at 0x00000004
@@ -50,8 +51,8 @@ pc : mhi_deinit_free_irq+0x54
  esoc → mdm_subsys_retry_powerup_cleanup → mdm_handle_boot_fail → mdm_subsys_powerup
 ```
 
-Setelah guard pertama dipasang, panic **bergeser** ke `mhi_deinit_dev_ctxt+0xec` (NULL `mhi_ctxt`).
-Keduanya sudah ditambal di `patches/0002-mhi-null-guards.patch`:
+After the first guard was added, the panic **moved** to `mhi_deinit_dev_ctxt+0xec`
+(NULL `mhi_ctxt`). Both are patched in `patches/0002-mhi-null-guards.patch`:
 
 ```c
 void mhi_deinit_free_irq(struct mhi_controller *mhi_cntrl)
@@ -69,28 +70,28 @@ void mhi_deinit_dev_ctxt(struct mhi_controller *mhi_cntrl)
 }
 ```
 
-Hasil: modem tetap gagal (tidak ada seluler), tapi **kernel tidak panic**.
+Result: the modem still fails (no cellular), but the **kernel no longer panics**.
 
-Opsional (hemat CPU, hilangkan retry): `stop vendor.mdm_helper` + `stop vendor.mdm_launcher`
-(service `vendor.per_mgr` / `pm-service` **jangan** dimatikan — dia juga mengatur subsistem lain).
+Optional (saves CPU, stops retries): `stop vendor.mdm_helper` + `stop vendor.mdm_launcher`.
+Do **not** stop `vendor.per_mgr` / `pm-service` — it also drives other subsystems.
 
 ## 5. `LGE Crash Handler: UEFI Crash` → `Enter Sahara Mode`
 
-Kernel di `boot.img` **terkompresi**. LG XBL hanya mau **Image mentah**.
+The kernel inside `boot.img` is **compressed**. LG XBL only accepts a **raw Image**.
 
-Penyebab klasik: `Image.gz` di-gzip dua kali, lalu `magiskboot` cuma mengurai satu lapis.
-Cek: `magiskboot unpack boot.img && file kernel` → harus
+Classic cause: `Image.gz` gzipped a second time, and `magiskboot` only unwraps one layer.
+Check: `magiskboot unpack boot.img && file kernel` → must report
 `Linux kernel ARM64 boot executable Image`.
 
-## 6. Vermagic berubah jadi ada `+`
+## 6. Vermagic gains a trailing `+`
 
-`out/` di dalam source membuat git tree dianggap dirty → `setlocalversion` menambah `+`.
-Solusi: hardcode suffix (`patches/0003-setlocalversion-fixed.patch`) atau taruh `out/`
-di luar source / `.git/info/exclude`.
+With `out/` inside the source tree, git considers the tree dirty → `setlocalversion`
+appends `+`. Fix: hardcode the suffix (`patches/0003-setlocalversion-fixed.patch`), or move
+`out/` outside the source tree / add it to `.git/info/exclude`.
 
-## 7. `dmesg` kosong walau root (Android 16 / Lineage 23)
+## 7. `dmesg` is empty even as root (Android 16 / Lineage 23)
 
-`klogctl` dibatasi SELinux. Untuk forensik crash pakai **pstore**:
+`klogctl` is restricted by SELinux. For crash forensics use **pstore**:
 
 ```bash
 adb root    # Lineage userdebug
@@ -99,10 +100,11 @@ adb shell "cat /sys/fs/pstore/pmsg-ramoops-0" > pmsg.txt
 adb shell getprop ro.boot.bootreason
 ```
 
-`pstore` **tertimpa setiap boot** — tarik segera setelah reboot, sebelum reboot lagi.
+`pstore` is **overwritten on every boot** — pull it immediately after a reboot, before
+rebooting again.
 
-## 8. `ro.product.model` = `UNKNOWN`
+## 8. `ro.product.model` reads `UNKNOWN`
 
-Bukan kernel: prop `system_ext`/`vendor_dlkm` tetap `LM-V600`, sementara
-`ro.product.model`/`system`/`vendor` jatuh ke `UNKNOWN`. Kosmetik; bisa ditambal
-`resetprop ro.product.model LM-V600` lewat module.
+Not a kernel issue: `system_ext`/`vendor_dlkm` props still report `LM-V600`, while
+`ro.product.model`/`system`/`vendor` fall back to `UNKNOWN`. Cosmetic; fixable with
+`resetprop ro.product.model LM-V600` from a module.

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Build Image + modules untuk timelm (LineageOS 23.2, kernel 4.19) + KernelSU built-in.
+# Build Image + modules for timelm (LineageOS 23.2, kernel 4.19) with KernelSU built-in.
 #
-# Env:
-#   KERNEL_DIR   : direktori source kernel (default: ../kernel)
-#   TOOLCHAIN    : bin clang (default: ~/toolchain/clang-r563880c/bin)
-#   JOBS         : -j (default: nproc)
-#   OUT          : build dir (default: out)
+# Environment:
+#   KERNEL_DIR : kernel source directory (default: ../kernel)
+#   TOOLCHAIN  : clang bin directory (default: ~/toolchain/clang-r563880c/bin)
+#   JOBS       : parallel jobs (default: nproc)
+#   OUT        : build directory (default: out)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,27 +23,27 @@ MK=(make -j"$JOBS" O="$OUT" ARCH=arm64
     OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip
     CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-)
 
-echo "== KSU version =="
+echo "== KernelSU version =="
 git -C ReSukiSU describe --tags 2>/dev/null || true
 
-echo "== hapus generated version =="
+echo "== removing generated version files =="
 rm -f "$OUT"/include/config/kernel.release \
       "$OUT"/include/generated/utsrelease.h \
       "$OUT"/include/generated/compile.h \
       "$OUT"/init/version.o
 
-echo "== build Image ($(date -u)) =="
+echo "== building Image ($(date -u)) =="
 "${MK[@]}" Image
 
-echo "== cek versi =="
+echo "== kernel version string =="
 strings -a "$OUT/arch/arm64/boot/Image" | grep -m1 "Linux version 4.19.325"
 
-echo "== jumlah simbol ksu =="
+echo "== ksu symbol count =="
 grep -c " ksu_" "$OUT/System.map" || true
 
-echo "== modules =="
+echo "== building modules =="
 "${MK[@]}" modules
 
-echo "== selesai $(date -u) =="
+echo "== done $(date -u) =="
 echo "Image : $K/$OUT/arch/arm64/boot/Image"
-echo "Lanjut: scripts/repack.sh"
+echo "Next  : scripts/repack.sh"

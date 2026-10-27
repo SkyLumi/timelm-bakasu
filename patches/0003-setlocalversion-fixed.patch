@@ -5,7 +5,7 @@ index 5ca29cbf2..94f15b09d 100755
 @@ -1,4 +1,8 @@
  #!/bin/sh
 +
-+# KSU_FIXED_LOCALVERSION: suffix final disamakan persis dengan kernel stock Lineage
++# KSU_FIXED_LOCALVERSION: hardcoded suffix, byte-identical to the stock Lineage kernel
 +printf "%s" "-cip133-st17-perf-g29902cf733dc"
 +exit 0
  # SPDX-License-Identifier: GPL-2.0

@@ -6,5 +6,5 @@ CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK=y
 CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y
 CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK=y
 
-# tracepoint hook hanya untuk GKI 2.0 (kernel 5.10+)
+# tracepoint hook is GKI 2.0 only (kernel 5.10+)
 # CONFIG_KSU_TRACEPOINT_HOOK is not set

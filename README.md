@@ -2,8 +2,6 @@
 
 **KernelSU (ReSukiSU/BakaSU) built into the kernel for the LG V60 ThinQ — `timelm` — on LineageOS 23.2 (Android 16, kernel 4.19)**
 
-[🇮🇩 Bahasa Indonesia](README.id.md)
-
 This repository contains patches and scripts to build the LineageOS 23.2 kernel with **KernelSU in built-in mode** (not LKM) for the LG V60 (`L-51A`, `LM-V600EA/VM/TM/N`), plus the technical notes on an `MHI`/modem bug that makes rebuilt kernels reboot on their own.
 
 > Status: **working** — `su` works, the BakaSU manager reports "Working (Built-in)", and the MHI panic triggered by a failed modem boot is patched (see [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)).

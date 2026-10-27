@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# Repack Image -> boot.img dengan magiskboot.
+# Repack Image -> boot.img using magiskboot.
 #
-# PENTING (LG): XBL menolak kernel terkompresi. File "kernel" di folder repack
-# HARUS Image mentah (hasil 'make Image'), bukan Image.gz.
+# IMPORTANT (LG): XBL refuses a compressed kernel. The "kernel" file inside the
+# repack directory MUST be a raw Image (output of 'make Image'), not Image.gz.
 #
-# Env:
-#   STOCK_BOOT : boot.img stock Lineage (default: ../boot-stock.img)
-#   IMAGE      : Image hasil build (default: ../kernel/out/arch/arm64/boot/Image)
-#   KERNEL_DIR : source kernel (untuk ambil ramdisk.cpio + dtb via unpack)
-#   MAGISKBOOT : path magiskboot (default: ./magiskboot)
-#   OUTIMG     : nama output (default: boot-sukisu.img)
+# Environment:
+#   STOCK_BOOT : stock Lineage boot.img (default: ../boot-stock.img)
+#   IMAGE      : raw Image from the build (default: ../kernel/out/arch/arm64/boot/Image)
+#   MAGISKBOOT : path to magiskboot (default: ./magiskboot)
+#   OUTIMG     : output file name (default: boot-sukisu.img)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,29 +17,29 @@ IMAGE="${IMAGE:-$ROOT/kernel/out/arch/arm64/boot/Image}"
 MAGISKBOOT="${MAGISKBOOT:-$ROOT/magiskboot}"
 OUTIMG="${OUTIMG:-boot-sukisu.img}"
 
-[ -f "$STOCK" ]   || { echo "!! stock boot.img tidak ada: $STOCK"; exit 1; }
-[ -f "$IMAGE" ]   || { echo "!! Image tidak ada: $IMAGE"; exit 1; }
+[ -f "$STOCK" ] || { echo "!! stock boot.img not found: $STOCK"; exit 1; }
+[ -f "$IMAGE" ] || { echo "!! Image not found: $IMAGE"; exit 1; }
 
 file "$IMAGE" | grep -qi "Linux kernel ARM64 boot executable Image" \
-  || { echo "!! $IMAGE bukan Image mentah (jangan pakai Image.gz)"; exit 1; }
+  || { echo "!! $IMAGE is not a raw Image (do not use Image.gz)"; exit 1; }
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-echo "== unpack stock =="
+echo "== unpacking stock boot.img =="
 ( cd "$work" && "$MAGISKBOOT" unpack "$STOCK" >/dev/null )
 
-echo "== siapkan repack =="
+echo "== preparing repack directory =="
 mkdir -p "$work/repack"
 cp "$work/ramdisk.cpio" "$work/dtb" "$work/repack/"
 cp "$IMAGE" "$work/repack/kernel"
 
-echo "== repack =="
+echo "== repacking =="
 ( cd "$work/repack" && "$MAGISKBOOT" repack "$STOCK" "$ROOT/$OUTIMG" )
 
-echo "== hasil =="
+echo "== output =="
 ls -l "$ROOT/$OUTIMG"
 sha256sum "$ROOT/$OUTIMG"
 echo
-echo "Tes  : fastboot boot $OUTIMG"
-echo "Simpan: fastboot flash boot $OUTIMG"
+echo "Test  : fastboot boot $OUTIMG"
+echo "Commit: fastboot flash boot $OUTIMG"
