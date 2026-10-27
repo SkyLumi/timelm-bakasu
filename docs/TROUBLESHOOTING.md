@@ -108,3 +108,23 @@ rebooting again.
 Not a kernel issue: `system_ext`/`vendor_dlkm` props still report `LM-V600`, while
 `ro.product.model`/`system`/`vendor` fall back to `UNKNOWN`. Cosmetic; fixable with
 `resetprop ro.product.model LM-V600` from a module.
+
+## 9. SUSFS is not supported on NonGKI kernels
+
+Upstream note (BakaSU/SUSFS): *"SUSFS is no longer supported for NonGKI kernels. If you want to
+use SUSFS on a NonGKI kernel, manually backport the patches from the `gki-android12-5.10`
+branch."*
+
+What that means for this kernel (4.19 LGE `sm8250`):
+
+- `CONFIG_KSU_SUSFS` exists in the Kconfig, but enabling it without the kernel-side SUSFS
+  patch set will not work (the hook points are missing: `fs/namei.c`, `fs/readdir.c`,
+  `fs/open.c`, `fs/stat.c`, mm paths, and more).
+- Backporting from 5.10 to 4.19 is manual work: the LGE tree already diverges from CAF/AOSP,
+  so expect conflicts in the VFS and mm code.
+- KernelSU alone (what this release ships) already provides `su`, per-app grants, modules and
+  module umount. SUSFS adds hiding features only (`sus_path`, `sus_mount`, spoof uname/cmdline,
+  open redirect, ksu symbol hiding).
+
+Practical alternatives for hiding root: Zygisk-based solutions on top of KernelSU, plus a
+Play Integrity fix with a valid keybox. SUSFS is not a replacement for a keybox.
