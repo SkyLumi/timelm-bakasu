@@ -1,0 +1,8 @@
+*.img
+*.zip
+out/
+kernel/
+toolchain/
+magiskboot
+crash*.txt
+pmsg*.txt
