@@ -1,4 +1,4 @@
-# timelm-kernelsu
+# timelm-bakasu
 
 **KernelSU (ReSukiSU/BakaSU) built-in untuk LG V60 ThinQ — `timelm` — di LineageOS 23.2 (Android 16, kernel 4.19)**
 

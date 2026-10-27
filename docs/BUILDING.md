@@ -69,7 +69,7 @@ Manual hooks (4.19 tidak punya tracepoint GKI) — lihat `patches/0001-lineage-k
 
 ```bash
 KERNEL_DIR=~/timelm/kernel TOOLCHAIN=~/timelm/toolchain/clang-r563880c/bin \
-  ~/timelm/timelm-kernelsu/scripts/build.sh
+  ~/timelm/timelm-bakasu/scripts/build.sh
 ```
 
 Hasil: `kernel/out/arch/arm64/boot/Image` (±48 MB) dan `kernel/out/System.map`.
@@ -83,7 +83,7 @@ Cek:
 ```bash
 STOCK_BOOT=~/timelm/boot-stock.img \
 IMAGE=~/timelm/kernel/out/arch/arm64/boot/Image \
-  ~/timelm/timelm-kernelsu/scripts/repack.sh
+  ~/timelm/timelm-bakasu/scripts/repack.sh
 ```
 
 ⚠️ `repack.sh` akan **menolak** input `Image.gz`. Ini disengaja: LG XBL tidak bisa
