@@ -25,7 +25,7 @@ This repo stores the patches and the build recipe so nobody has to repeat the sa
 - KernelSU **built-in** (`CONFIG_KSU=y`) with **manual hooks** (4.19 compatible)
 - Multi-manager support, matches **BakaSU nightly 35252**
 - **Vermagic identical to stock** (`4.19.325-cip133-st17-perf-g29902cf733dc`) → vendor modules (`wlan.ko`, audio DLKMs, …) still load
-- **SUSFS is not enabled** in this build (`CONFIG_KSU_SUSFS` off); KernelSU alone is built in
+- **SUSFS is not enabled** in this build (`CONFIG_KSU_SUSFS` off); KernelSU alone is built in. Notes on backporting it: [`docs/SUSFS-BACKPORT.md`](docs/SUSFS-BACKPORT.md)
 - **MHI/modem NULL-deref fix** (two guards) → the modem may fail, the phone no longer panics
 - Repack script uses a **raw `Image`** (LG XBL refuses a compressed kernel → `UEFI Crash` / `Sahara Mode`)
 
