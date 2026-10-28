@@ -36,10 +36,15 @@ echo "== building Image ($(date -u)) =="
 "${MK[@]}" Image
 
 echo "== kernel version string =="
-strings -a "$OUT/arch/arm64/boot/Image" | grep -m1 "Linux version 4.19.325"
+# grep -m1 exits early and strings gets SIGPIPE; with pipefail that would end the script (exit 141)
+strings -a "$OUT/arch/arm64/boot/Image" | grep -m1 "Linux version 4.19.325" || true
 
 echo "== ksu symbol count =="
 grep -c " ksu_" "$OUT/System.map" || true
+if grep -q "^CONFIG_KSU_SUSFS=y" "$OUT/.config"; then
+	echo "== susfs symbol count =="
+	grep -c " susfs_" "$OUT/System.map" || true
+fi
 
 echo "== building modules =="
 "${MK[@]}" modules
