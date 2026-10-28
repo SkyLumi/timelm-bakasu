@@ -1,139 +1,119 @@
-# Adding SUSFS to this 4.19 NonGKI kernel
+# SUSFS v2.3.0 on this 4.19 NonGKI kernel
 
-Upstream states SUSFS is no longer supported on NonGKI kernels and that you must backport
-patches from `gki-android12-5.10`. In practice `susfs4ksu` still carries a
-`kernel-4.19` branch with a ready patch set. This document is the route I would take to
-try it on the LGE `sm8250` tree, plus the parts that will bite you.
+`patches/0004-susfs-v2.3.0-4.19.patch` backports the kernel side of
+[susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) **`gki-android12-5.10` @ `eb95da0` (v2.3.0)**
+to LineageOS `android_kernel_lge_sm8250` @ `29902cf733dc` (4.19.325), for ReSukiSU
+`d5e9e025` (KSU_VERSION 35252).
 
-> Not tested end to end at the time of writing. Treat it as a starting point, not a
-> guarantee. Keep a known good boot image to fall back to.
+Status: builds with `-Werror` (0 errors, 0 warnings), flashed and booted on an `LM-V600VM`.
+`ksu_susfs show version` → `v2.3.0`, `show variant` → `NON-GKI`, all 9 features enabled.
+The hiding rules themselves (module + detector apps) were **not** tested yet: SUSFS in the kernel
+is only the mechanism, the paths/mounts to hide come from the userspace module.
 
-## 0. Risk
+## Why not the `kernel-4.19` branch
 
-- The patch touches `fs/namei.c`, `fs/stat.c`, `fs/readdir.c`, `fs/namespace.c`,
-  `fs/proc/task_mmu.c`, `kernel/kallsyms.c`, `include/linux/sched.h`, `fs/Makefile`.
-- Mistakes there mean panics or bootloops. Always test with `fastboot boot` before flashing.
-- Expect 2 to 4 build iterations.
+It is still v1.5.5 (Feb 2025). Current ReSukiSU only tracks the latest SUSFS ("we don't maintain
+ANY backward compatibility for old version of susfs") and calls functions v1.5.5 does not have
+(`susfs_add_sus_map`, `susfs_add_sus_path_loop`, `susfs_is_current_proc_umounted`, …), and it
+checks for the `ksu_selinux_hide_running` hook in `security/selinux/hooks.c`.
 
-## 1. Sources
-
-```bash
-git clone -b kernel-4.19 --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git susfs4ksu
-```
-
-Useful layout:
-
-```
-kernel_patches/50_add_susfs_in_kernel-4.19.patch
-kernel_patches/fs/susfs.c
-kernel_patches/fs/sus_su.c
-kernel_patches/include/linux/susfs.h
-kernel_patches/include/linux/susfs_def.h
-kernel_patches/include/linux/sus_su.h
-kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch   (not used with ReSukiSU)
-ksu_module_susfs/                                      (module + prebuilt ksu_susfs_arm64)
-```
-
-`10_enable_susfs_for_ksu.patch` targets upstream KernelSU. ReSukiSU already ships the
-KernelSU side (`CONFIG_KSU_SUSFS` with 10 options, `#include <linux/susfs.h>`), so only
-the kernel side is needed here.
-
-## 2. Copy files and apply the patch
+## Apply
 
 ```bash
-S=~/timelm/susfs4ksu/kernel_patches
-K=~/timelm/kernel
-
-cp $S/fs/susfs.c   $K/fs/
-cp $S/fs/sus_su.c  $K/fs/
-cp $S/include/linux/susfs.h $S/include/linux/susfs_def.h $S/include/linux/sus_su.h $K/include/linux/
-
-cd $K
-patch -p1 --dry-run < $S/50_add_susfs_in_kernel-4.19.patch   # inspect first
-git apply --3way --reject $S/50_add_susfs_in_kernel-4.19.patch
+cd kernel
+git apply ../patches/0001-lineage-ksu-integration.patch
+git apply ../patches/0003-setlocalversion-fixed.patch
+git apply ../patches/0004-susfs-v2.3.0-4.19.patch
+cat ../config/susfs.fragment >> out/.config     # after extract-ikconfig, see BUILDING.md
 ```
 
-Likely conflicts on this tree:
+`0004` is a diff on top of `0001` + `0003`. In ReSukiSU, `KSU_SUSFS` and `KSU_MANUAL_HOOK` are one
+Kconfig `choice` (hooking method), so `0004` removes the manual hooks of `0001` from `exec.c`,
+`open.c`, `stat.c`, `reboot.c` and puts the SUSFS inline hooks in their place. It also adds
+`fs/susfs.c`, `include/linux/susfs.h` and `include/linux/susfs_def.h` (upstream files, plus the
+4.19 changes listed below). `0002` is not needed.
 
-| File | Reason |
-|---|---|
-| `fs/namei.c` | Lineage backports change function context |
-| `fs/stat.c` | already carries `ksu_handle_stat` hooks |
-| `fs/readdir.c` | `iterate_dir` context differs from upstream 4.19 |
-| `fs/proc/task_mmu.c` | Qualcomm vendor modifications |
-| `kernel/sys.c` | ReSukiSU already adds hooks there |
+The build log should show all seven hook checks:
 
-Resolve by re-inserting the `#include <linux/susfs.h>` and the `susfs_*` calls at the
-equivalent places, not by copying line numbers. Then check:
+```
+-- BakaSU/susfs_feature_check: selinux_hide manual hook found
+-- BakaSU/susfs_inline: ksu_handle_execveat found
+-- BakaSU/susfs_inline: ksu_handle_faccessat found
+-- BakaSU/susfs_inline: ksu_handle_input_handle_event found
+-- BakaSU/susfs_inline: ksu_handle_setresuid found
+-- BakaSU/susfs_inline: ksu_handle_stat found
+-- BakaSU/susfs_inline: ksu_handle_sys_read found
+-- BakaSU/susfs_inline: ksu_handle_sys_reboot found
+-- SUSFS_VERSION: v2.3.0
+```
+
+## How it was ported
+
+The 5.10 patch (129 hunks, 25 files) applies with `patch -F3` except 9 hunks, but **fuzz is not
+trustworthy here**: several hunks landed in the wrong function (the post-exec hook inside
+`set_binfmt()`, declarations inside a comment in `do_faccessat()`, `susfs_statfs_by_dentry()` inside
+`vfs_statfs()`, `CL_COPY_MNT_NS` inside `current_chrooted()`). Every hunk was checked for the
+function it was meant for, and these files were ported by hand from a clean copy:
+`fs/exec.c`, `fs/stat.c`, `fs/namei.c`, `fs/open.c`, `fs/statfs.c`, `fs/proc/fd.c`,
+`fs/proc/task_mmu.c`, `security/selinux/avc.c`, `fs/proc/cmdline.c`.
+
+### 4.19 differences and what the port does
+
+| Area | 5.10 | 4.19 port |
+|---|---|---|
+| `exec.c` | hooks in `do_execveat_common()` | hooks in `__do_execve_file()` |
+| module preinit | PID 1 exec retry via `goto orig_flow` | **not hooked**; the retry would have to unwind `displaced`/`in_exec`/`pathname` state of 4.19 and a mistake bootloops. Modules still run from `post-fs-data` |
+| `stat.c` | `vfs_fstat()`, `stat->mnt_id` | `vfs_statx_fd()`; `struct kstat` has no `mnt_id` (5.8+), so `SUS_KSTAT` only spoofs the fields 4.19 has |
+| `namei.c` lookup | `lookup_fast()` returns a dentry, `try_to_unlazy()` | `lookup_fast()` returns int (0 = fall back to `lookup_slow()`), `unlazy_walk()`; `ND_STATE_*` kept in a new `nameidata.state` |
+| open | `open_last_lookups()` + `do_open()` | `do_last()` does both; `ND_STATE_OPEN_LAST` is set in `do_last()` |
+| `OPEN_REDIRECT` | re-walk inside `path_openat()` before `do_open()` | in `do_filp_open()`: if the opened inode is flagged, close it and open the redirected path (the pattern SUSFS 1.5.x used on 4.19). Not applied to `O_TMPFILE` |
+| `/proc/bootconfig` spoof | `fs/proc/bootconfig.c` | NonGKI has no bootconfig: spoof in LG's `fs/proc/cmdline.c` (after its charger-mode fixup) |
+| AVC log spoof | `avc_audit_post_callback()` | `avc_dump_query()`, where 4.19 prints `tcontext` |
+| `/proc/<pid>/fdinfo` | adds `ino:` | 4.19 has no `ino:` line; spoofed output keeps the 4.19 format |
+| `/proc/mounts`, `mountinfo` | `susfs_show_*()` copies of 5.10 | copies re-synced with Android 4.19, which prefers `->show_options2()` (sdcardfs) |
+| `namespace.c` | `vfs_create_mount()`, `mnt_stuck_children` | this LGE tree has the `fs_context` backport (`vfs_create_mount()` exists); `susfs_alloc_*_vfsmnt()` mirror 4.19 `alloc_vfsmnt()` (`mnt.data = NULL`, `init_fs_pin()`) |
+| `/proc/<pid>/map_files` | one loop | 4.19 counts and fills in two loops; `SUS_MAP` filter is in both |
+| `smaps_rollup` / `pagemap` | mmap lock restart logic | plain loop on 4.19; `walk_page_range(start, end, &walk)` |
+| `show_map_vma()` | `VMA_PAD_START()` (GKI VMA padding) | `vma->vm_end` |
+| sdcard monitor (`susfs.c`) | `fsnotify_ops.handle_inode_event` | `->handle_event()` with a C-string file name |
+| `readdir.c` | declarations at the top | 4.19 has `access_ok()` first; declarations moved up (`-Wdeclaration-after-statement`) |
+| `susfs_def.h` | | `#include <linux/cred.h>` for `current_uid()` |
+
+### Flags checked for collisions on 4.19
+
+- `ND_FLAGS_LOOKUP_LAST 0x2000000` vs `LOOKUP_*` (max `0x8000`)
+- `STATX_SUS_KSTAT 0x10000000`, `STATX_SUS_KSTAT_FUSE 0x20000000` vs `STATX_*` (cleared in `vfs_statx()` before reaching userspace)
+- `VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT 0x80000000` vs `MNT_*` (max `0x8000000`)
+- `CL_COPY_MNT_NS BIT(25)` vs `CL_*` (max `0x80`)
+
+### KABI
+
+No struct used by modules changes layout: `Module.symvers` of the SUSFS build has 0 changed CRCs
+and 0 removed symbols compared to the KernelSU-only build, and the phone loads the same 34 vendor
+modules as stock.
+
+## Verification on the device
 
 ```bash
-grep -rn "<<<<<<<\|>>>>>>>" fs/ kernel/ include/ | head
-find . -name "*.rej" | head
+adb push susfs4ksu/ksu_module_susfs/tools/ksu_susfs_arm64 /data/local/tmp/ksu_susfs
+adb shell su -c "chmod 755 /data/local/tmp/ksu_susfs"
+adb shell su -c "/data/local/tmp/ksu_susfs show version"            # v2.3.0
+adb shell su -c "/data/local/tmp/ksu_susfs show variant"            # NON-GKI
+adb shell su -c "/data/local/tmp/ksu_susfs show enabled_features"   # 9 CONFIG_KSU_SUSFS_* lines
+adb shell su -c "grep -c -E ' (ksu_|susfs_)' /proc/kallsyms"        # 0 (HIDE_KSU_SUSFS_SYMBOLS)
 ```
 
-## 3. Config
+Also re-check what #4 of TROUBLESHOOTING lists (model, speaker cnt file, `ESOC_BOOT_DONE`): they
+must look like stock.
 
-```bash
-scripts/config --file .config \
-  -e KSU_SUSFS -e KSU_SUSFS_SUS_PATH -e KSU_SUSFS_SUS_MOUNT -e KSU_SUSFS_SUS_KSTAT \
-  -e KSU_SUSFS_SPOOF_UNAME -e KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
-  -e KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG -e KSU_SUSFS_OPEN_REDIRECT -e KSU_SUSFS_SUS_MAP \
-  -d KSU_SUSFS_ENABLE_LOG
+## Userspace
 
-make ARCH=arm64 olddefconfig
-```
+Install the module from `susfs4ksu/ksu_module_susfs` (same `gki-android12-5.10` checkout) with the
+manager. Its `post-fs-data.sh` sets the fake `/proc/cmdline` from a copy of the real one; that
+spoof is global, so keep the `androidboot.vendor.lge.*` entries in it.
 
-Notes:
+## Updating
 
-- Leave `KSU_SUSFS_HAS_MAGIC_MOUNT` off unless your manager uses magic mount.
-- `SUS_SU` is not supported on NonGKI, do not chase it.
-- Enable `KSU_SUSFS_ENABLE_LOG` only while debugging.
-
-## 4. Build and verify
-
-```bash
-KERNEL_DIR=~/timelm/kernel TOOLCHAIN=~/timelm/toolchain/clang-r563880c/bin \
-  scripts/build.sh
-
-strings out/arch/arm64/boot/Image | grep -m1 "Linux version 4.19.325"   # vermagic must stay identical
-grep -c " ksu_" out/System.map
-strings out/arch/arm64/boot/Image | grep -c susfs                        # must be > 0
-```
-
-Repack with a raw `Image` (see `scripts/repack.sh`), then:
-
-```bash
-fastboot boot boot-sukisu-susfs.img
-adb shell su -c "cat /proc/susfs_version"
-```
-
-## 5. Userspace
-
-```bash
-cd ~/timelm/susfs4ksu
-zip -r susfs4ksu-module.zip ksu_module_susfs     # includes ksu_susfs_arm64 prebuilt
-adb push susfs4ksu-module.zip /sdcard/           # install via manager
-```
-
-Or push the tool directly to `/data/adb/ksu/bin/ksu_susfs` and use:
-
-```bash
-ksu_susfs show version
-ksu_susfs add_sus_path /system/addon.d
-ksu_susfs add_sus_mount /system/addon.d
-ksu_susfs enable_spoof_uname
-```
-
-## 6. Common pitfalls
-
-1. `fs/susfs.c` copied but `fs/Makefile` not patched: build fails with `undefined reference to susfs_*`.
-2. `CONFIG_KPROBES=y` can interact badly with some SUSFS paths. If strange errors appear, retry without it.
-3. A dirty git tree inside the source adds `+` to vermagic. Hardcode the suffix or move `out/` out of the tree.
-4. Driver and manager builds must match (`ksud debug info`).
-5. Do not stop `vendor.per_mgr`: it drives more than the modem.
-
-## 7. If it works
-
-Record the exact `ReSukiSU` and `susfs4ksu` commit hashes, export the final
-`git diff` as `patches/0004-susfs-4.19.patch`, and attach `ksu_susfs show version`
-output. That is what makes the experiment reproducible for the next person.
+When simonpunk updates `gki-android12-5.10`, ReSukiSU follows it and drops compatibility with the
+old version. Re-port by diffing the new upstream patch against `eb95da0`, not by re-applying it
+with fuzz.
